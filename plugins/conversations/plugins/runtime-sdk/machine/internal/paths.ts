@@ -30,6 +30,11 @@ export const AGENT_SCRIPT = asAppPath(
   join(import.meta.dir, "../../bin/agent-host.ts"),
 );
 
+/** The Pi-backed agent host beside the Claude one (`harness: "pi"`). */
+export const AGENT_SCRIPT_PI = asAppPath(
+  join(import.meta.dir, "../../bin/agent-pi.ts"),
+);
+
 // macOS's sun_path is 104 bytes, NUL included.
 const MAX_SOCKET_PATH_BYTES = 103;
 

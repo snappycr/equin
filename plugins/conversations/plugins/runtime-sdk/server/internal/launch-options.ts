@@ -54,6 +54,14 @@ export interface SdkLaunchInput {
  */
 export function sdkLaunchOptions(input: SdkLaunchInput): AgentLaunchIntent {
   const { launch } = input;
+  // Phase 1 switch: the whole machine runs on Pi when the backend is started
+  // with EQUIN_HARNESS=pi. Per-conversation selection comes with the model
+  // provider work; this keeps the upstream diff to one branch.
+  const harness = process.env.EQUIN_HARNESS === "pi" ? "pi" : "claude";
+  const piProvider =
+    harness === "pi" ? (process.env.EQUIN_PI_PROVIDER ?? "deepseek") : null;
+  const piModel =
+    harness === "pi" ? (process.env.EQUIN_PI_MODEL ?? "deepseek-chat") : null;
   const settingSources = [
     ...(launch.settingSources ?? DEFAULT_SETTING_SOURCES),
   ];
@@ -75,7 +83,11 @@ export function sdkLaunchOptions(input: SdkLaunchInput): AgentLaunchIntent {
     // checkout itself either way.
     guardsRoot:
       launch.guards.from === "checkout" ? input.cwd : launch.guards.root,
-    model: input.model ? cliFlagFor(input.model) : null,
+    harness,
+    piProvider,
+    piModel,
+    model:
+      harness === "pi" ? null : input.model ? cliFlagFor(input.model) : null,
     effort: (input.effort && resolveEffortFlag(input.effort)) ?? null,
     settings: mergeLaunchSettings(
       input.effort ? resolveEffortSettings(input.effort) : undefined,

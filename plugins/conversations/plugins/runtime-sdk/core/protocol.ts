@@ -132,6 +132,8 @@ export const HelloReplySchema = z.object({
   turnIds: z.literal(true).optional(),
   /** The agent takes `reconnectMcp`. Absent from an agent started before it existed. */
   mcpReconnect: z.literal(true).optional(),
+  /** The harness behind this process (absent from Claude agents). */
+  harness: z.literal("pi").optional(),
 });
 export type HelloReply = z.infer<typeof HelloReplySchema>;
 
@@ -336,6 +338,11 @@ export const AgentLaunchOptionsSchema = z.preprocess(
      * relaunched from an options file written for the computer's own `claude`
      * (before Oct 2026) moves onto the bundled build.
      */
+    /** Which agent harness runs this conversation. Default: Claude Code. */
+    harness: z.enum(["claude", "pi"]).default("claude"),
+    /** Pi's provider and model, when `harness` is "pi". */
+    piProvider: z.string().nullable().default(null),
+    piModel: z.string().nullable().default(null),
     claudeBin: z.string(),
     /**
      * The `disclaim-exec` helper (packages/spawn-disclaim) the agent runs

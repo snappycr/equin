@@ -42,6 +42,7 @@ import {
 import { processName } from "@plugins/packages/plugins/process-name/core";
 import {
   AGENT_SCRIPT,
+  AGENT_SCRIPT_PI,
   agentBinDir,
   agentDir,
   agentLogPath,
@@ -81,6 +82,15 @@ async function forget(id: string): Promise<void> {
   if (!instance) return;
   instances.delete(id);
   await instance.stop();
+}
+
+/** The `pi` on this machine: its dir goes on the agent's PATH. */
+function piBinPath(): string {
+  const found =
+    typeof Bun !== "undefined" && typeof Bun.which === "function"
+      ? Bun.which("pi")
+      : null;
+  return found ?? process.env.PI_BIN ?? "pi";
 }
 
 function shellWord(value: string): string {
@@ -186,27 +196,33 @@ export async function startAgentProcess(
   // The session's EQUIN_SCRATCH (agentSessionEnv), there before its first
   // command. Under /tmp, so the OS reclaims it once the conversation is idle.
   await mkdir(agentScratchDir(id), { recursive: true, mode: 0o700 });
-  const claudeBin = await bundledClaudeBin();
-  const disclaimExec = await resolveDisclaimExec(id);
-  const launcher = await namedLauncher({
-    conversationId: id,
-    disclaimExec,
-    previous: await previousNamedLauncher(id),
-  });
+  // The Pi harness needs none of the Claude process decoration: no bundled
+  // Claude, no disclaim/named launcher, no Claude account. Its key comes from
+  // Pi's own login (~/.pi), read under the allowlisted HOME.
+  const pi = intent.harness === "pi";
+  const claudeBin = pi ? piBinPath() : await bundledClaudeBin();
+  const disclaimExec = pi ? null : await resolveDisclaimExec(id);
+  const launcher = pi
+    ? null
+    : await namedLauncher({
+        conversationId: id,
+        disclaimExec: disclaimExec!,
+        previous: await previousNamedLauncher(id),
+      });
   // This backend's own bun, by path (the login shell's PATH is the account's),
   // named `equin · agent` — one clone per machine and Bun version, shared by
   // every agent, so only the first agent after a Bun upgrade pays macOS's
   // first-exec scan (~1.7 s; a per-conversation name paid it at every new
   // conversation's first start). Its claude carries the conversation's name.
-  const bun = await cloneSharedBun(processName("agent"));
-  if (bun.kind === "refused")
+  const bun = pi ? null : await cloneSharedBun(processName("agent"));
+  if (bun?.kind === "refused")
     await recordReport({
       kind: "crash",
       source: "server-caught",
       message: `SDK agent ${id}: could not clone bun into ${sharedBunDir()} (${bun.code}), so Activity Monitor lists the agent as a bare \`bun\``,
       data: { errorType: "SdkAgentBunLink", label: "runtime-sdk.process-name" },
     });
-  const namedBun = bun.kind === "cloned" ? bun.path : null;
+  const namedBun = bun?.kind === "cloned" ? bun.path : null;
   const options: AgentLaunchOptions = {
     ...intent,
     // A main slot becomes main's `current` link (main-slots
@@ -217,7 +233,7 @@ export async function startAgentProcess(
     disclaimExec,
     namedLauncher: launcher,
     namedBun,
-    backgroundShell: await agentBackgroundShell(agentBinDir(id)),
+    backgroundShell: pi ? null : await agentBackgroundShell(agentBinDir(id)),
     seqFloor: await appliedSeq(id),
   };
   // Whole or not at all: the daily reclaim reads a running agent's file, and
@@ -226,22 +242,21 @@ export async function startAgentProcess(
   const staging = `${optionsPath}.${String(process.pid)}.tmp`;
   await writeFile(staging, JSON.stringify(options, null, 2));
   await rename(staging, optionsPath);
-  const account = await nextLaunchAccount();
+  const account = pi ? "pi" : await nextLaunchAccount();
   // Not demoted: the agent leaves darwinbg itself and demotes only what its
   // CLI launches (bin/agent.ts, scheduling tier).
   const command = [
     namedBun ?? process.execPath,
-    AGENT_SCRIPT,
+    pi ? AGENT_SCRIPT_PI : AGENT_SCRIPT,
     "--dir",
     agentDir(id),
     "--socket",
     agentSocketPath(id),
     "--pid-file",
     agentPidPath(id),
-    "--account",
-    account,
-    "--usage-file",
-    claudeUsagePath(account),
+    ...(pi
+      ? []
+      : ["--account", account, "--usage-file", claudeUsagePath(account)]),
   ]
     .map(shellWord)
     .join(" ");

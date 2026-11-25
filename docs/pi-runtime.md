@@ -152,3 +152,52 @@ DeepSeek streams into the UI, message persists, status goes
 prompt, print event types until `agent_settled`. Run on the VM with
 `DEEPSEEK_API_KEY` set. Proves: headless auth, event names, model selection,
 and whether Pi's tool events carry enough to build equin's event lines.
+
+## Status (first cut, on `feat/pi-runtime`)
+
+Implemented:
+
+- `bin/agent-pi.ts` — the Pi host: socket, `events.jsonl`, pid file, launch
+  prompt, `turn` / `interrupt` / `setModel` / `shutdown`.
+- `harness: "claude" | "pi"` in the launch options; `AGENT_SCRIPT_PI`;
+  `agent-process.ts` skips Claude's bundled binary, launcher, account and
+  usage file for Pi; PATH carries `pi`.
+- `EQUIN_HARNESS=pi` switches every new launch in the backend (Phase 1),
+  with `EQUIN_PI_PROVIDER` / `EQUIN_PI_MODEL` (default deepseek /
+  deepseek-chat).
+
+Proven with Pi 0.85.1 + DeepSeek, no equin backend:
+
+    REPLY hello  -> version 2, harness pi
+    EVENT started, system/init, turn_started, ready
+    EVENT first_token, first_message
+    EVENT sdk/assistant  [{"type":"text","text":"ok"}]
+    EVENT sdk/result     success
+
+Known gaps for the next pass:
+
+1. **Transcript view.** `transcript-source` reads Claude Code JSONL session
+   files; the Pi host writes equin events, not that file. The agent manager and
+   status work, the conversation transcript will be empty until the host also
+   writes Claude-shaped JSONL (or the app's memory transcript provider is
+   wired).
+2. **Model picker** is still Claude-only; the Pi model comes from env.
+3. **Questions/approvals**: Pi has no permission layer; `answer` / `dismiss`
+   are refused. The user's subagent extension covers agents, not approvals.
+4. **Usage/cost**: Pi usage is not in the ledger yet; `result` carries no cost.
+5. `rewindFiles`, `reconnectMcp`, partial `subscribe` are refused.
+
+## Trying it
+
+On the VM, after the normal equin install and `pi /login` (DeepSeek):
+
+    # gateway (systemd user unit) and builds must see the switch
+    EQUIN_HARNESS=pi \
+    EQUIN_PI_PROVIDER=deepseek \
+    EQUIN_PI_MODEL=deepseek-v4-pro \
+      ./equin start --force
+    ./equin build --allow-main --skip-checks
+
+Then start a conversation. `agent.log` under
+`~/.equin/state/sdk-agents/<ns>/<conv>/agent.log` names Pi's own errors; the
+`events.jsonl` beside it is the contract.
