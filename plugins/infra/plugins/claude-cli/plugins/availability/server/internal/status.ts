@@ -36,6 +36,19 @@ const changedListeners = new Set<() => void>();
  * launches, the resource loader, a recheck) wait on one pair of processes.
  */
 function probe(): Promise<ClaudeCodeStatus> {
+  // The Pi harness runs no Claude Code at all: a signed-out Claude is not a
+  // block, and the health row / launch controls must not ask for a sign-in
+  // the app will never use. One switch, read where every launch asks.
+  if (process.env.EQUIN_HARNESS === "pi") {
+    const status: ClaudeCodeStatus = {
+      kind: "ready",
+      version: "pi",
+      authMethod: "pi",
+      email: null,
+    };
+    record(status);
+    return Promise.resolve(status);
+  }
   return probes.run("probe", async () => {
     const status = withRefusal(await probeClaudeCode());
     record(status);
@@ -120,6 +133,9 @@ export type LaunchReadiness =
  *   ends the agent before `ready`, failing the launch loudly with the reason.
  */
 export async function checkLaunchReadiness(): Promise<LaunchReadiness> {
+  // Pi: no Claude account is involved (agent-process skips it), so there is
+  // nothing to be signed out of. Every launch gate calls this.
+  if (process.env.EQUIN_HARNESS === "pi") return { kind: "ready" };
   if ((await activeClaudeAccountId()) !== SYSTEM_ACCOUNT_ID)
     return { kind: "ready" };
   const status = await checkClaudeCode();

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { z } from "zod";
 import {
   queryRows,
@@ -54,9 +55,22 @@ export function sharedBuffersBytes(ramBytes: number): number {
 export function clusterServerSettings(
   ramBytes: number,
 ): Readonly<Record<string, string>> {
+  // Bun's os.totalmem() can report the host's RAM inside an LXC/VM while
+  // /proc/meminfo carries the guest's real total. Use the smaller of the two:
+  // a 2 GB guest must not reserve a gigabyte of buffers because its host has
+  // 16 GB.
+  let guest = ramBytes;
+  try {
+    const line = /^MemTotal:\s+(\d+) kB/m.exec(
+      readFileSync("/proc/meminfo", "utf8"),
+    );
+    if (line) guest = Math.min(ramBytes, Number(line[1]) * 1024);
+  } catch {
+    // No procfs: the caller's figure is all we have.
+  }
   return {
     max_connections: String(MAX_CONNECTIONS),
-    shared_buffers: `${sharedBuffersBytes(ramBytes) / MB}MB`,
+    shared_buffers: `${sharedBuffersBytes(guest) / MB}MB`,
   };
 }
 
