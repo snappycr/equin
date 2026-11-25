@@ -144,7 +144,7 @@ function contentOf(message: {
   const content = message.content;
   if (typeof content === "string") return [{ type: "text", text: content }];
   if (!Array.isArray(content)) return [];
-  return content.flatMap((block: unknown) => {
+  return content.flatMap((block: unknown): Record<string, unknown>[] => {
     if (typeof block !== "object" || block === null) return [];
     const b = block as Record<string, unknown>;
     switch (b.type) {
