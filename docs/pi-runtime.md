@@ -194,7 +194,7 @@ On the VM, after the normal equin install and `pi /login` (DeepSeek):
     # gateway (systemd user unit) and builds must see the switch
     EQUIN_HARNESS=pi \
     EQUIN_PI_PROVIDER=deepseek \
-    EQUIN_PI_MODEL=deepseek-v4-pro \
+    EQUIN_PI_MODEL=deepseek-flash \
       ./equin start --force
     ./equin build --allow-main --skip-checks
 

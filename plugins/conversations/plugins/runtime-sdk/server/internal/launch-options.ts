@@ -61,7 +61,7 @@ export function sdkLaunchOptions(input: SdkLaunchInput): AgentLaunchIntent {
   const piProvider =
     harness === "pi" ? (process.env.EQUIN_PI_PROVIDER ?? "deepseek") : null;
   const piModel =
-    harness === "pi" ? (process.env.EQUIN_PI_MODEL ?? "deepseek-chat") : null;
+    harness === "pi" ? (process.env.EQUIN_PI_MODEL ?? "deepseek-flash") : null;
   const settingSources = [
     ...(launch.settingSources ?? DEFAULT_SETTING_SOURCES),
   ];
